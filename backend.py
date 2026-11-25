@@ -62,12 +62,16 @@ def list_models(provider: str | None = None) -> list[str]:
         return []
 
 
+def _clean(messages):
+    return [{"role": m.get("role"), "content": m.get("content")} for m in (messages or [])]
+
+
 def stream_chat(provider, model, messages, temperature, top_p, max_tokens,
                 frequency_penalty, presence_penalty) -> Iterator[str]:
     client = get_client(provider)
     stream = client.chat.completions.create(
         model=model,
-        messages=messages,
+        messages=_clean(messages),
         temperature=temperature,
         top_p=top_p,
         max_tokens=max_tokens,
