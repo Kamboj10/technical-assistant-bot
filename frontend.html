@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Technical Troubleshooting Assistant</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #0f1115; color: #e6e6e6; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 16px; }
+  h1 { margin: 0 0 4px; }
+  .caption { color: #9aa0a6; margin-bottom: 12px; }
+  #chat { border: 1px solid #2a2f3a; border-radius: 8px; padding: 12px; height: 60vh; overflow-y: auto; background: #161a22; }
+  .msg { margin: 8px 0; padding: 8px 10px; border-radius: 6px; white-space: pre-wrap; }
+  .user { background: #1f2a3a; }
+  .assistant { background: #1a221a; }
+  .row { display: flex; gap: 8px; margin-top: 10px; }
+  input[type=text] { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #2a2f3a; background: #161a22; color: #e6e6e6; }
+  button { padding: 10px 14px; border-radius: 6px; border: none; background: #2d6cdf; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  .controls { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  select { padding: 8px; border-radius: 6px; background: #161a22; color: #e6e6e6; border: 1px solid #2a2f3a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🛠 Technical Troubleshooting Assistant</h1>
+  <div class="caption">Exact, point-to-point technical steps. No filler.</div>
+  <div class="controls">
+    <select id="provider"></select>
+    <select id="model"></select>
+  </div>
+  <div id="chat"></div>
+  <div class="row">
+    <input id="input" type="text" placeholder="Describe the error or task..." />
+    <button id="send">Send</button>
+  </div>
+</div>
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const providerSel = document.getElementById('provider');
+const modelSel = document.getElementById('model');
+let messages = [];
+
+async function loadProviders() {
+  const r = await fetch('/providers'); const ps = await r.json();
+  providerSel.innerHTML = ps.map(p => `<option value="${p}">${p}</option>`).join('');
+  await loadModels();
+}
+async function loadModels() {
+  const p = providerSel.value;
+  const r = await fetch('/models?provider=' + encodeURIComponent(p));
+  const ms = await r.json();
+  modelSel.innerHTML = (Array.isArray(ms) ? ms : []).map(m => `<option value="${m}">${m}</option>`).join('');
+}
+providerSel.addEventListener('change', loadModels);
+
+function addMsg(role, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  messages.push({ role: 'user', content: text });
+  addMsg('user', text);
+  const assistantDiv = addMsg('assistant', '');
+  sendBtn.disabled = true;
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: providerSel.value,
+        model: modelSel.value,
+        messages: messages,
+        params: { temperature: 0.1, top_p: 0.9, max_tokens: 4096, frequency_penalty: 0.2, presence_penalty: 0.0 }
+      })
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let full = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const payload = line.slice(6).trim();
+        if (payload === '[DONE]') continue;
+        try {
+          const obj = JSON.parse(payload);
+          if (obj.error) { assistantDiv.textContent += '\n[ERROR] ' + obj.error; }
+          else if (obj.delta) { full += obj.delta; assistantDiv.textContent = full; chat.scrollTop = chat.scrollHeight; }
+        } catch (e) {}
+      }
+    }
+    messages.push({ role: 'assistant', content: full });
+  } catch (e) {
+    assistantDiv.textContent += '\n[ERROR] ' + e;
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+sendBtn.addEventListener('click', send);
+input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+loadProviders();
+</script>
+</body>
+</html>
