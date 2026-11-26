@@ -9,6 +9,19 @@ from dotenv import load_dotenv
 
 from backend import (PROVIDERS, get_provider, get_model, list_models,
                      stream_chat)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def cached_models(provider: str):
+    try:
+        return list_models(provider)
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=2, show_spinner=False)
+def cached_sessions():
+    return list_sessions()
 from system_prompt import SYSTEM_PROMPT
 from storage import (list_sessions, new_session, save_session, load_session,
                      delete_session, export_markdown)
@@ -103,7 +116,7 @@ with st.sidebar:
         st.rerun()
 
     st.subheader("Model")
-    models = list_models(provider)
+    models = cached_models(provider)
     if models:
         idx = models.index(st.session_state.model) if st.session_state.model in models else 0
         model = st.selectbox("Model", models, index=idx)
@@ -131,7 +144,7 @@ with st.sidebar:
             st.rerun()
 
     st.subheader("Sessions")
-    sessions = list_sessions()
+    sessions = cached_sessions()
     ids = [s["id"] for s in sessions]
     if ids:
         cur_idx = ids.index(st.session_state.session_id) if st.session_state.session_id in ids else 0
@@ -148,11 +161,13 @@ with st.sidebar:
         st.session_state.session_id = new_session()
         st.session_state.messages = []
         st.session_state.feedback = {}
+        cached_sessions.clear()
         st.rerun()
     if c2.button("🗑 Delete"):
         delete_session(st.session_state.session_id)
         st.session_state.session_id = new_session()
         st.session_state.messages = []
+        cached_sessions.clear()
         st.rerun()
 
     if st.session_state.messages:
@@ -235,6 +250,7 @@ def run_generation():
             sess = load_session(st.session_state.session_id)
             title = st.session_state.messages[0]["content"][:40] if (sess and sess.get("title") == "New chat") else None
             save_session(st.session_state.session_id, st.session_state.messages, title=title)
+            cached_sessions.clear()
     st.rerun()
 
 # Handle pending quick prompt

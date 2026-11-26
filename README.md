@@ -125,6 +125,21 @@ The system prompt in `system_prompt.py` is the "personality contract" that force
 
 ---
 
+## 🚀 Deploy on Render
+
+1. Push the repo to GitHub.
+2. Create a new **Web Service** on Render, connect the repo.
+3. Set:
+   - **Build command:** `pip install -r requirements.txt`
+   - **Start command:** `streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true`
+4. Add environment variables in Render dashboard (`LLM_BACKEND`, `GROQ_API_KEY`, `GROQ_MODEL`, …) — do not commit `.env`.
+5. (Free tier) Instance sleeps after 15 min idle → first load is slow. Use a paid instance or a keep-alive pinger (e.g. UptimeRobot) hitting the app URL every 5 min.
+
+**Performance tips (already applied):**
+- Model list is cached for 5 min (`cached_models`).
+- Session list is cached for 2 s (`cached_sessions`).
+- Avoids repeated network/disk calls on every rerun.
+
 ## 📝 Notes
 
 - Use `python`, not `python3`, on Windows.
