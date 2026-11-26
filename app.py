@@ -1,15 +1,14 @@
 """Interactive Streamlit chat UI for the Technical Troubleshooting Assistant."""
 
 import json
-import os
 from datetime import datetime
 
 import streamlit as st
 import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
-from backend import (PROVIDERS, get_provider, get_client, get_model,
-                     list_models, stream_chat)
+from backend import (PROVIDERS, get_provider, get_model, list_models,
+                     stream_chat)
 from system_prompt import SYSTEM_PROMPT
 from storage import (list_sessions, new_session, save_session, load_session,
                      delete_session, export_markdown)
@@ -61,7 +60,6 @@ h1, .stMarkdown h1 {
 .stTextInput > div > div > input, .stTextArea textarea {
   background: rgba(255,255,255,0.8); border-radius: 10px; color: #1e1b4b;
 }
-.quick-chip { display: inline-block; margin: 2px; }
 /* text color on light bg */
 .stMarkdown, .stCaption, p, label, .stChatMessage { color: #1e1b4b; }
 </style>
@@ -235,9 +233,7 @@ def run_generation():
         if full:
             st.session_state.messages.append({"role": "assistant", "content": full, "ts": now_ts()})
             sess = load_session(st.session_state.session_id)
-            title = None
-            if sess and sess.get("title", "New chat") == "New chat" and st.session_state.messages:
-                title = st.session_state.messages[0]["content"][:40]
+            title = st.session_state.messages[0]["content"][:40] if (sess and sess.get("title") == "New chat") else None
             save_session(st.session_state.session_id, st.session_state.messages, title=title)
     st.rerun()
 
@@ -254,10 +250,11 @@ if prompt:
     if pending:
         name, content = pending
         user_content = f"{prompt}\n\n--- Attached file: {name} ---\n{content}\n--- End of file ---"
-    st.session_state.messages.append({"role": "user", "content": user_content, "ts": now_ts()})
+    ts = now_ts()
+    st.session_state.messages.append({"role": "user", "content": user_content, "ts": ts})
     with st.chat_message("user"):
         st.markdown(user_content)
-        st.caption(f"🕐 {now_ts()}")
+        st.caption(f"🕐 {ts}")
     run_generation()
 
 # Regenerate last response
